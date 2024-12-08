@@ -1,8 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Tommi Kekomäki 2023. All Rights Reserved.
 
 #include "LevelTravelClient.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "LevelTravelFunctionLibrary.h"
 #include "LevelTravelManagerComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -10,6 +11,19 @@ ULevelTravelClient::ULevelTravelClient(): PlayerController(nullptr), LevelTravel
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+}
+
+void ULevelTravelClient::SetFadeDuration_Implementation(float FadeDuration)
+{
+	NewFadeTime = FadeDuration;
+}
+
+void ULevelTravelClient::CameraFade_Implementation()
+{
+	if (const APlayerController* NewPlayerController = Cast<APlayerController>(GetOwner()))
+	{
+		NewPlayerController->PlayerCameraManager->StartCameraFade(0,1,NewFadeTime, FLinearColor::Black, true, false);
+	}
 }
 
 void ULevelTravelClient::BeginPlay()
@@ -27,12 +41,10 @@ void ULevelTravelClient::BeginPlay()
 		}
 	}
 
-	if(GetOwnerRole() != ROLE_Authority)
+	if(GetOwnerRole() != ROLE_Authority || NetGuid.IsValid())
 		return;
 
 	NetGuid = FGuid::NewGuid();
-
-	
 }
 
 void ULevelTravelClient::InitializeComponent()
@@ -43,11 +55,8 @@ void ULevelTravelClient::InitializeComponent()
 void ULevelTravelClient::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-}
 
-void ULevelTravelClient::CameraFade_Implementation()
-{
-	PlayerController->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, 5., FColor:: Black, true, true);
+	DOREPLIFETIME(ThisClass, NewFadeTime);
 }
 
 void ULevelTravelClient::RequestServerToTravel_Implementation(const FGameplayTag& LevelGameplayTag)
@@ -58,12 +67,7 @@ void ULevelTravelClient::RequestServerToTravel_Implementation(const FGameplayTag
 		return;
 	}
 	
-	LevelTravelManager = GetWorld()->GetAuthGameMode()->FindComponentByClass<ULevelTravelManagerComponent>();
-	if(!IsValid(LevelTravelManager.Get()))
-	{
-		UE_LOG(LogTemp, Error, TEXT("LevelTravelManagerComponent is not valid, called from LevelTravelClient") );
-		return;
-	}
+	LevelTravelManager = ULevelTravelFunctionLibrary::GetLevelTravelManagerComponent(GetWorld());
 
 	//If this player has already requested the travel
 	if(LevelTravelManager->PlayerControllersToTravel.Contains(NetGuid))
@@ -71,3 +75,4 @@ void ULevelTravelClient::RequestServerToTravel_Implementation(const FGameplayTag
 	
 	LevelTravelManager->AddPlayerControllerForServerTravelList(PlayerController.Get(), NetGuid, LevelGameplayTag);
 }
+
