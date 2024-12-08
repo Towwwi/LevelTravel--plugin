@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Tommi Kekomäki 2023. All Rights Reserved.
 
 #pragma once
 
@@ -8,6 +8,9 @@
 
 class ULevelTravelManagerComponent;
 
+/**
+ *  Component for a player-controller to request traveling to levels
+ */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ULevelTravelClient : public UActorComponent
 {
@@ -16,6 +19,10 @@ class ULevelTravelClient : public UActorComponent
 public:	
 	ULevelTravelClient();
 
+
+	UFUNCTION(Server, Reliable)
+	void SetFadeDuration(float FadeDuration);
+	
 	UFUNCTION(Client,Reliable)
 	void CameraFade();
 	
@@ -27,7 +34,7 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	//Ask server to do a server travel from the PlayerController.
+	//Ask the server to travel from the PlayerController.
 	UFUNCTION(BlueprintCallable, Server, Reliable)
 	void RequestServerToTravel(const FGameplayTag& LevelGameplayTag);
 
@@ -37,5 +44,8 @@ private:
 	TSoftObjectPtr<ULevelTravelManagerComponent> LevelTravelManager;
 	
 	FGuid NetGuid;
-	
+
+	UPROPERTY(Replicated)
+	float NewFadeTime = 5;
 };
+
