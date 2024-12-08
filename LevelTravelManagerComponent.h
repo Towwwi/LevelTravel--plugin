@@ -1,4 +1,4 @@
-// Tommi Kekomaki
+// Copyright Tommi Kekomäki 2023. All Rights Reserved.
 
 #pragma once
 
@@ -9,14 +9,17 @@
 #include "LevelTravelManagerComponent.generated.h"
 
 struct FGameplayTag;
-
 class ULevelData;
 class AGameModeBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSeamlessTravelEvent);
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRequestClientTravelRules, const FGameplayTag&, LevelGameplayTag);
 
+
+/**
+ *  Main Component to control modular-level traveling
+ *  !! Should only exist only on gamemode so has always authority
+ */
 UCLASS( Blueprintable, meta=(BlueprintSpawnableComponent) )
 class ULevelTravelManagerComponent : public UActorComponent
 {
@@ -27,11 +30,8 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-
-public:
-	UFUNCTION(BlueprintCallable, Category="LevelTravelManager")
-	int32 GetCurrentPlayerCount();
 	
+public:
 	//! @brief Apply rules on blueprint to see if the client can request a Server Travel. If it returns false, we are not yet ready to travel
 	bool RequestClientTravelRules(const FGameplayTag& LevelGameplayTag);
 
@@ -50,7 +50,7 @@ public:
 	
 protected:
 	UFUNCTION()
-	void ServerTravelToLevel(const FLevelDataStruct LevelData, const FGameplayTag& LevelGameplayTag) const;
+	void ServerTravelToLevel(const FLevelDataStruct& LevelData, const FGameplayTag& LevelGameplayTag) const;
 	
 private:
 	UFUNCTION()
@@ -87,18 +87,22 @@ public:
 	//! @brief When client requests to travel we add the controllers here
 	UPROPERTY(BlueprintReadOnly, Category="LevelTravelManager")
 	TMap<FGuid, APlayerController*> PlayerControllersToTravel;
-
-protected:
+	
 	//! @brief How many clients have requested a server travel
 	UPROPERTY(BlueprintReadOnly, Category="LevelTravelManager")
 	int32 ClientTravelRequestAmount = 0;
 
-private:
+	//! @brief This is the tag of the current traveled level
+	UPROPERTY(BlueprintReadOnly, Category="LevelTravelManager")
 	FGameplayTag CurrentLevelGameplayTag;
-	
+
+private:
 	FTimerHandle TimerHandle;
 	
 	bool bTimerFinished = false;
 		
 	TObjectPtr<AGameModeBase> GamemodeBase;
+
+	float FadeTime = 5;
+
 };
