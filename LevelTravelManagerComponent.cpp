@@ -1,15 +1,15 @@
-// Tommi Kekomaki
+// Copyright Tommi Kekomäki 2023. All Rights Reserved.
 
 #include "LevelTravelManagerComponent.h"
 #include "GameplayTagContainer.h"
 #include "LevelData.h"
 #include "LevelTravelClient.h"
 #include "Engine/World.h"
-#include "LevelTravelFunctionLibrary.h"
 #include "GameFramework/GameModeBase.h"
-#include "GameFramework/GameStateBase.h"
+#include "Net/UnrealNetwork.h"
 
 ULevelTravelManagerComponent::ULevelTravelManagerComponent(): LevelDataAsset(nullptr), ClientTravelRulesAccepted(false),
+                                                              CurrentLevelGameplayTag(),
                                                               GamemodeBase(nullptr)
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -33,6 +33,9 @@ void ULevelTravelManagerComponent::BeginPlay()
 	OnSeamlessTravelStart = FWorldDelegates::OnSeamlessTravelStart.AddUObject(this, &ThisClass::OnSeamlessTravelStartEvent);
 	OnSeamlessTravelEnd = FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &ThisClass::OnSeamlessTravelTransition);
 	
+	PlayerControllersToTravel.Reset();
+	ClientTravelRequestAmount = 0;
+	
 }
 
 bool ULevelTravelManagerComponent::RequestClientTravelRules(const FGameplayTag& LevelGameplayTag)
@@ -49,9 +52,8 @@ bool ULevelTravelManagerComponent::RequestClientTravelRules(const FGameplayTag& 
 
 FString ULevelTravelManagerComponent::GetLevelPath(const FGameplayTag& LevelGameplayTag) const
 {
-	// if(!LevelGameplayTag.IsValid())
-	// 	return FString{};// @TODO Tommi, Create macro for validating data
 
+	// @TODO Tommi, Create macro for validating data
 	if(const FLevelDataStruct* LevelData = LevelDataAsset->LevelDatas.Find(LevelGameplayTag))
 	{
 			FString PackagePath = LevelData->Level.GetLongPackageName();
@@ -66,14 +68,13 @@ FString ULevelTravelManagerComponent::GetLevelPath(const FGameplayTag& LevelGame
 
 void ULevelTravelManagerComponent::OnSeamlessTravelStartEvent(UWorld* CurrentWorld, const FString& LevelName)
 {
-	if(GEngine)
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::White, TEXT("OnSeamlessTravelStartEvent"));	
+  //@TODO Tommi - Not sure if we need any event here but could be useful for maybe starting a ASYNC loading screen? 
 }
 
 void ULevelTravelManagerComponent::OnSeamlessTravelTransition(UWorld* CurrentWorld)
 {
-	if(GEngine)
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, TEXT("OnSeamlessTravelTransition"));	
+	//@TODO Tommi - Not sure if we need any event here but could be useful
+	// This is too early though to do any actual gameplay related logic
 }
 
 void ULevelTravelManagerComponent::ServerStartTravelToLevel(const FGameplayTag& LevelGameplayTag)
@@ -121,21 +122,11 @@ void ULevelTravelManagerComponent::AddPlayerControllerForServerTravelList(const 
 	}
 }
 
-void ULevelTravelManagerComponent::ServerTravelToLevel(const FLevelDataStruct LevelData,
+void ULevelTravelManagerComponent::ServerTravelToLevel(const FLevelDataStruct& LevelData,
                                                        const FGameplayTag& LevelGameplayTag) const
 {
 	GetWorld()->ServerTravel(GetLevelPath(LevelGameplayTag), LevelData.bUseSeamlessTravel, LevelData.bShouldSkipGameNotify);
 }
-
-int32 ULevelTravelManagerComponent::GetCurrentPlayerCount()
-{
-	const AGameStateBase* GameState = GetWorld()->GetGameState();
-	if (!IsValid(GameState))
-		return 0;
-
-	return GameState->PlayerArray.Num();
-}
-
 
 void ULevelTravelManagerComponent::StartTimer(float TimerDuration) //@TODO Tommi, think if net-sync clock is needed.
 {
@@ -171,10 +162,10 @@ void ULevelTravelManagerComponent::StartClientRequestTravel(const FGameplayTag& 
 			const APlayerController* InPlayerController = Pair.Value;
 			if (IsValid(InPlayerController))
 			{
+				InPlayerController->GetComponentByClass<ULevelTravelClient>()->SetFadeDuration(LevelData->Timer);
 				InPlayerController->GetComponentByClass<ULevelTravelClient>()->CameraFade();
 			}
 		}
 	}
-	
-	PlayerControllersToTravel.Reset();
 }
+
