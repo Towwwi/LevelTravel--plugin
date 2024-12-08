@@ -64,6 +64,7 @@ private:
 	
 	void OnTimerElapsed();
 
+	void StartClientRequestTravel(const FGameplayTag& LevelGameplayTag);
 #pragma region Events
 protected:
 	FDelegateHandle OnSeamlessTravelStart;

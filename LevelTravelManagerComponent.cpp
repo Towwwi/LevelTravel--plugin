@@ -5,6 +5,7 @@
 #include "LevelData.h"
 #include "LevelTravelClient.h"
 #include "Engine/World.h"
+#include "LevelTravelFunctionLibrary.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
 
@@ -12,7 +13,6 @@ ULevelTravelManagerComponent::ULevelTravelManagerComponent(): LevelDataAsset(nul
                                                               GamemodeBase(nullptr)
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	SetIsReplicatedByDefault(true);
 }
 
 void ULevelTravelManagerComponent::BeginPlay()
@@ -114,34 +114,11 @@ float ULevelTravelManagerComponent::GetTimerFromLevelData(const FGameplayTag& Le
 
 void ULevelTravelManagerComponent::AddPlayerControllerForServerTravelList(const APlayerController* PlayerController, const FGuid& NetGuid, const FGameplayTag& LevelGameplayTag)
 {
-	if(GetTimerFromLevelData(LevelGameplayTag) != 0.0f && IsValid(PlayerController))
+	if(IsValid(PlayerController))
 	{
 		PlayerControllersToTravel.Add(NetGuid, const_cast<APlayerController*>(PlayerController));
+		StartClientRequestTravel(LevelGameplayTag);
 	}
-
-	
-	if(!RequestClientTravelRules(LevelGameplayTag))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("LevelTravelManagerComponent rules deny traveling or all the requests are not yet complited") );
-		return;
-	}
-	
-	const FLevelDataStruct* LevelData = LevelDataAsset->LevelDatas.Find(LevelGameplayTag);
-	if(LevelData == nullptr)
-		return;
-	
-	ServerStartTravelToLevel(LevelGameplayTag);
-	
-	for (const TPair<FGuid, APlayerController*> Pair : PlayerControllersToTravel)
-	{
-		const APlayerController* InPlayerController = Pair.Value;
-		if (IsValid(InPlayerController) && InPlayerController->IsLocalController())
-		{
-			InPlayerController->GetComponentByClass<ULevelTravelClient>()->CameraFade();
-		}
-	}
-	
-	PlayerControllersToTravel.Reset();
 }
 
 void ULevelTravelManagerComponent::ServerTravelToLevel(const FLevelDataStruct LevelData,
@@ -171,4 +148,33 @@ void ULevelTravelManagerComponent::OnTimerElapsed()
 	GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 	
 	ServerStartTravelToLevel(CurrentLevelGameplayTag);
+}
+
+void ULevelTravelManagerComponent::StartClientRequestTravel(const FGameplayTag& LevelGameplayTag)
+{
+	if(!RequestClientTravelRules(LevelGameplayTag))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("LevelTravelManagerComponent rules deny traveling or all the requests are not yet complited") );
+		return;
+	}
+	
+	const FLevelDataStruct* LevelData = LevelDataAsset->LevelDatas.Find(LevelGameplayTag);
+	if(LevelData == nullptr)
+		return;
+	
+	ServerStartTravelToLevel(LevelGameplayTag);
+
+	if(LevelData->bUseFade)
+	{
+		for (const TPair<FGuid, APlayerController*> Pair : PlayerControllersToTravel)
+		{
+			const APlayerController* InPlayerController = Pair.Value;
+			if (IsValid(InPlayerController))
+			{
+				InPlayerController->GetComponentByClass<ULevelTravelClient>()->CameraFade();
+			}
+		}
+	}
+	
+	PlayerControllersToTravel.Reset();
 }
